@@ -1088,6 +1088,35 @@ takes the same syntax and semantics as in
 .B End.M.GTP4.E
 above (no PDU Session Container is inserted unless explicitly set).
 
+.B End.M.GTP6.D srh segs
+.IR SEGMENTS
+.B src
+.IR ADDRESS
+.B sr_prefix_len
+.IR BITS
+- SRv6 Mobile User Plane End.M.GTP6.D behavior (RFC 9433 Section 6.3).
+At the SR ingress gateway, the matching IPv6/UDP/GTP-U packet has its
+GTP-U envelope removed and the inner T-PDU is re-encapsulated in SRv6
+using the supplied SR Policy
+.RI ( srh
+\fBsegs\fR\~\fISEGMENTS\fR).  The TEID is folded into the 40-bit
+Args.Mob.Session field placed immediately after the egress
+End.M.GTP6.E SID's locator (RFC 9433 Section 6.5),
+.B sr_prefix_len
+specifying the locator length in bits (1..88 -- the upper bound
+leaves room for the 40-bit Args.Mob.Session field within the
+128-bit egress SID).  The egress SID's locator
+length cannot be inferred from local state at the SR Gateway.  The
+egress
+.B End.M.GTP6.E
+SID can then recover the per-session identifier from the same offset.
+The new outer IPv6 source address is taken from
+.BR src .
+The action requires either no SRH or an SRH with
+.B Segments Left
+equal to zero on the inbound packet; other matching packets are
+dropped.
+
 .B Flavors parameters
 
 The flavors represent additional operations that can modify or extend a
