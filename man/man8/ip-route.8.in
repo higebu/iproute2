@@ -1133,6 +1133,51 @@ is rejected for this action: the original outer destination is
 preserved verbatim instead of being repacked with an Args.Mob.Session
 field, so no locator length needs to be carried.
 
+.B H.M.GTP4.D nh6
+.IR ADDRESS
+.B src
+.IR ADDRESS
+.B v4_mask_len
+.IR BITS
+.B sr_prefix_len
+.IR BITS
+.RB [ "v6_src_prefix_len"
+.IR BITS ]
+- SRv6 Mobile User Plane H.M.GTP4.D headend behavior (RFC 9433 Section
+6.7).  Match an IPv4/UDP/GTP-U packet, strip the GTP-U envelope, and
+re-encapsulate the inner T-PDU in a new IPv6 header whose addresses
+encode the per-session identifiers expected by an
+.B End.M.GTP4.E
+SID at the egress SR gateway.  The destination UPF prefix template is
+specified by
+.BR nh6 ,
+the source UPF prefix template by
+.BR src ;
+.B v4_mask_len
+is the bit length reserved for the original IPv4 destination/source
+address, and
+.B sr_prefix_len
+is the locator length of the egress End.M.GTP4.E SID (1..88).
+The 40-bit Args.Mob.Session field defined
+by RFC 9433 Section 6.1 follows the embedded IPv4 destination at the
+offset implied by
+.BR sr_prefix_len " + " v4_mask_len ;
+its width is fixed by the RFC and is not exposed as a knob.
+.BR sr_prefix_len " + " v4_mask_len
+must therefore be at most 88 bits so the resulting 128-bit SID can
+hold all three fields.
+.B v6_src_prefix_len
+controls the IPv6 SA layout per RFC 9433 Section 6.6 Figure 10
+(\fIP\fR | IPv4 SA | padding) in the same way as for End.M.GTP4.E:
+1..127, and
+.BR v6_src_prefix_len " + " v4_mask_len " <= 128" ;
+defaults to 64 when omitted.
+.PP
+.B Note:
+because H.M.GTP4.D matches IPv4/GTP-U packets, the route must be
+installed on the IPv4 FIB (\fBip -4 route add ...\fR); installing it
+under \fBip -6 route\fR is rejected by the kernel.
+
 .B Flavors parameters
 
 The flavors represent additional operations that can modify or extend a
