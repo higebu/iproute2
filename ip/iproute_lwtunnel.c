@@ -405,6 +405,7 @@ static const char *seg6_action_names[SEG6_LOCAL_ACTION_MAX + 1] = {
 	[SEG6_LOCAL_ACTION_END_AM]		= "End.AM",
 	[SEG6_LOCAL_ACTION_END_BPF]		= "End.BPF",
 	[SEG6_LOCAL_ACTION_END_DT46]		= "End.DT46",
+	[SEG6_LOCAL_ACTION_END_MAP]		= "End.MAP",
 };
 
 static const char *format_action_type(int action)
@@ -576,6 +577,16 @@ static void print_encap_seg6local(FILE *fp, struct rtattr *encap)
 
 	if (tb[SEG6_LOCAL_FLAVORS])
 		print_seg6_local_flavors(fp, tb[SEG6_LOCAL_FLAVORS]);
+}
+
+static void seg6local_action_check_attrs(int action, int nh6_ok)
+{
+	switch (action) {
+	case SEG6_LOCAL_ACTION_END_MAP:
+		if (!nh6_ok)
+			invarg("End.MAP requires \"nh6\"\n", "");
+		break;
+	}
 }
 
 static void print_encap_mpls(FILE *fp, struct rtattr *encap)
@@ -1570,6 +1581,8 @@ static int parse_encap_seg6local(struct rtattr *rta, size_t len, int *argcp,
 		fprintf(stderr, "Missing action type\n");
 		exit(-1);
 	}
+
+	seg6local_action_check_attrs(action, nh6_ok);
 
 	if (srh_ok) {
 		int srhlen;
