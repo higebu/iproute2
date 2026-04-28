@@ -410,6 +410,7 @@ static const char *seg6_action_names[SEG6_LOCAL_ACTION_MAX + 1] = {
 	[SEG6_LOCAL_ACTION_END_M_GTP6_E]	= "End.M.GTP6.E",
 	[SEG6_LOCAL_ACTION_END_M_GTP6_D]	= "End.M.GTP6.D",
 	[SEG6_LOCAL_ACTION_END_M_GTP6_D_DI]	= "End.M.GTP6.D.Di",
+	[SEG6_LOCAL_ACTION_H_M_GTP4_D]		= "H.M.GTP4.D",
 };
 
 static const char *format_action_type(int action)
@@ -646,6 +647,7 @@ static void seg6local_action_check_attrs(int action, int srh_ok, int nh6_ok,
 					 int mobile_sr_plen_ok,
 					 int mobile_v6src_plen_ok,
 					 __u8 v4_mask_len,
+					 __u8 sr_prefix_len,
 					 __u8 v6_src_prefix_len,
 					 __u8 dst_len)
 {
@@ -672,6 +674,32 @@ static void seg6local_action_check_attrs(int action, int srh_ok, int nh6_ok,
 		if (mobile_sr_plen_ok)
 			invarg("End.M.GTP6.D.Di does not accept \"sr_prefix_len\"\n",
 			       "");
+		break;
+	case SEG6_LOCAL_ACTION_H_M_GTP4_D:
+		if (!nh6_ok || !mobile_src_ok || !mobile_v4mask_ok ||
+		    !mobile_sr_plen_ok)
+			invarg("H.M.GTP4.D requires \"nh6\", \"src\","
+			       " \"v4_mask_len\", and \"sr_prefix_len\"\n", "");
+		/*
+		 * The 128-bit egress SID built by H.M.GTP4.D packs the SR
+		 * locator, the embedded IPv4 destination, and the 40-bit
+		 * Args.Mob.Session field, so sr_prefix_len + v4_mask_len
+		 * must leave room for it.
+		 */
+		if ((unsigned int)sr_prefix_len +
+		    (unsigned int)v4_mask_len > 88)
+			invarg("H.M.GTP4.D requires \"sr_prefix_len\" +"
+			       " \"v4_mask_len\" <= 88"
+			       " (40 bits reserved for Args.Mob.Session)\n", "");
+		/*
+		 * IPv6 SA layout per RFC 9433 Section 6.6 Figure 10 reused
+		 * by H.M.GTP4.D headend; same combined bound as End.M.GTP4.E.
+		 */
+		if (mobile_v6src_plen_ok &&
+		    (unsigned int)v6_src_prefix_len +
+		    (unsigned int)v4_mask_len > 128)
+			invarg("H.M.GTP4.D requires \"v6_src_prefix_len\" +"
+			       " \"v4_mask_len\" <= 128\n", "");
 		break;
 	case SEG6_LOCAL_ACTION_END_M_GTP4_E:
 		if (!mobile_src_ok || !mobile_v4mask_ok)
@@ -1795,7 +1823,8 @@ static int parse_encap_seg6local(struct rtattr *rta, size_t len, int *argcp,
 	seg6local_action_check_attrs(action, srh_ok, nh6_ok, mobile_src_ok,
 				     mobile_v4mask_ok, mobile_sr_plen_ok,
 				     mobile_v6src_plen_ok,
-				     v4_mask_len, v6_src_prefix_len, dst_len);
+				     v4_mask_len, sr_prefix_len,
+				     v6_src_prefix_len, dst_len);
 
 	if (srh_ok) {
 		int srhlen;
