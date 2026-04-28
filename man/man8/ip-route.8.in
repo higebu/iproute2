@@ -1067,6 +1067,27 @@ PDU Type; when omitted no Container is inserted, so 5G N3 deployments
 must set it explicitly.
 The action only accepts packets with Segments Left = 0 or no SRH.
 
+.B End.M.GTP6.E src
+.IR ADDRESS
+.RB [ "pdu_type"
+.IR DIR ]
+- SRv6 Mobile User Plane End.M.GTP6.E behavior (RFC 9433 Section 6.5).
+At the SR egress gateway, an SRv6 packet whose current SID is an
+End.M.GTP6.E SID is converted into an IPv6/UDP/GTP-U packet directed at
+the next segment held in
+.IR SRH[0] .
+The 40-bit Args.Mob.Session field defined in RFC 9433 Section 6.1 is
+read from the right-aligned tail of the matching SID, and its 32-bit
+PDU Session ID portion is used as the GTP-U TEID.  The IPv6 source
+address of the new tunnel is set to the user-provided template
+.BR src .
+The action requires Segments Left to equal 1; other matching packets are
+dropped.  The optional
+.B pdu_type
+takes the same syntax and semantics as in
+.B End.M.GTP4.E
+above (no PDU Session Container is inserted unless explicitly set).
+
 .B Flavors parameters
 
 The flavors represent additional operations that can modify or extend a
