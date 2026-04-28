@@ -1033,6 +1033,40 @@ with the configured next SID
 and forward via the IPv6 FIB. The Segment Routing Header is left
 untouched.
 
+.B End.M.GTP4.E src
+.IR ADDRESS
+.B v4_mask_len
+.IR BITS
+.RB [ "v6_src_prefix_len"
+.IR BITS ]
+.RB [ "pdu_type"
+.IR DIR ]
+- SRv6 Mobile User Plane End.M.GTP4.E behavior (RFC 9433 Section 6.6).
+At the SR egress gateway, the matching SRv6 packet is converted into
+an IPv4/UDP/GTP-U packet for delivery to a legacy IPv4-attached gNB or
+eNB.  The IPv6 destination address of the matching SID encodes
+.IR Locator " | " "IPv4 DA" " (\fBv4_mask_len\fR bits) | "
+.IR "Args.Mob.Session" " (40 bits, RFC 9433 Section 6.1)" ,
+and the IPv6 source address is built from
+.B src
+as
+.IR "Source UPF Prefix" " (\fBv6_src_prefix_len\fR bits) | "
+.IR "IPv4 SA" " (\fBv4_mask_len\fR bits) | padding" .
+.B v4_mask_len
+must be in 1..32 and
+.B v6_src_prefix_len
+in 1..127 (default 64); the route prefix length plus
+.BR v4_mask_len " + 40"
+and
+.BR v6_src_prefix_len " + " v4_mask_len
+must each fit in 128 bits.
+.B pdu_type
+.RB ( downlink | dl | uplink | ul " or " 0..15 )
+forces a GTP-U PDU Session Container (3GPP TS 38.415) with the given
+PDU Type; when omitted no Container is inserted, so 5G N3 deployments
+must set it explicitly.
+The action only accepts packets with Segments Left = 0 or no SRH.
+
 .B Flavors parameters
 
 The flavors represent additional operations that can modify or extend a

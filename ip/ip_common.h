@@ -153,7 +153,7 @@ extern const struct ipstats_stat_desc ipstats_stat_desc_xstats_slave_bond_group;
 
 /* iproute_lwtunnel.c */
 int lwt_parse_encap(struct rtattr *rta, size_t len, int *argcp, char ***argvp,
-		    int encap_attr, int encap_type_attr);
+		    int encap_attr, int encap_type_attr, __u8 dst_len);
 void lwt_print_encap(FILE *fp, struct rtattr *encap_type, struct rtattr *encap);
 
 /* iplink_xdp.c */

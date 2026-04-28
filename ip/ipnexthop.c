@@ -1100,7 +1100,7 @@ static int ipnh_modify(int cmd, unsigned int flags, int argc, char **argv)
 			rta->rta_len = RTA_LENGTH(0);
 
 			lwt_parse_encap(rta, sizeof(buf), &argc, &argv,
-					NHA_ENCAP, NHA_ENCAP_TYPE);
+					NHA_ENCAP, NHA_ENCAP_TYPE, 0);
 
 			if (rta->rta_len > RTA_LENGTH(0)) {
 				addraw_l(&req.n, 1024, RTA_DATA(rta),

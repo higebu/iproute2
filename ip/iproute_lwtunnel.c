@@ -406,6 +406,7 @@ static const char *seg6_action_names[SEG6_LOCAL_ACTION_MAX + 1] = {
 	[SEG6_LOCAL_ACTION_END_BPF]		= "End.BPF",
 	[SEG6_LOCAL_ACTION_END_DT46]		= "End.DT46",
 	[SEG6_LOCAL_ACTION_END_MAP]		= "End.MAP",
+	[SEG6_LOCAL_ACTION_END_M_GTP4_E]	= "End.M.GTP4.E",
 };
 
 static const char *format_action_type(int action)
@@ -577,14 +578,91 @@ static void print_encap_seg6local(FILE *fp, struct rtattr *encap)
 
 	if (tb[SEG6_LOCAL_FLAVORS])
 		print_seg6_local_flavors(fp, tb[SEG6_LOCAL_FLAVORS]);
+
+	if (tb[SEG6_LOCAL_MOBILE_SRC_ADDR])
+		print_string(PRINT_ANY, "src", "src %s ",
+			     rt_addr_n2a_rta(AF_INET6,
+					     tb[SEG6_LOCAL_MOBILE_SRC_ADDR]));
+
+	if (tb[SEG6_LOCAL_MOBILE_V4_MASK_LEN])
+		print_uint(PRINT_ANY, "v4_mask_len", "v4_mask_len %u ",
+			   rta_getattr_u8(tb[SEG6_LOCAL_MOBILE_V4_MASK_LEN]));
+
+	if (tb[SEG6_LOCAL_MOBILE_V6_SRC_PREFIX_LEN])
+		print_uint(PRINT_ANY, "v6_src_prefix_len",
+			   "v6_src_prefix_len %u ",
+			   rta_getattr_u8(tb[SEG6_LOCAL_MOBILE_V6_SRC_PREFIX_LEN]));
+
+	if (tb[SEG6_LOCAL_MOBILE_PDU_TYPE]) {
+		__u8 t = rta_getattr_u8(tb[SEG6_LOCAL_MOBILE_PDU_TYPE]);
+		const char *name = NULL;
+
+		switch (t) {
+		case 0:
+			name = "downlink";
+			break;
+		case 1:
+			name = "uplink";
+			break;
+		}
+
+		if (name)
+			print_string(PRINT_ANY, "pdu_type",
+				     "pdu_type %s ", name);
+		else
+			print_uint(PRINT_ANY, "pdu_type",
+				   "pdu_type %u ", t);
+	}
 }
 
-static void seg6local_action_check_attrs(int action, int nh6_ok)
+static void seg6local_action_check_attrs(int action, int srh_ok, int nh6_ok,
+					 int mobile_src_ok,
+					 int mobile_v4mask_ok,
+					 int mobile_v6src_plen_ok,
+					 __u8 v4_mask_len,
+					 __u8 v6_src_prefix_len,
+					 __u8 dst_len)
 {
 	switch (action) {
 	case SEG6_LOCAL_ACTION_END_MAP:
 		if (!nh6_ok)
 			invarg("End.MAP requires \"nh6\"\n", "");
+		break;
+	case SEG6_LOCAL_ACTION_END_M_GTP4_E:
+		if (!mobile_src_ok || !mobile_v4mask_ok)
+			invarg("End.M.GTP4.E requires \"src\" and \"v4_mask_len\"\n",
+			       "");
+		if (srh_ok)
+			invarg("End.M.GTP4.E does not accept \"srh\"\n", "");
+		/*
+		 * The IPv6 source-address layout per RFC 9433 Section 6.6
+		 * Figure 10 packs the Source UPF Prefix (P bits) followed
+		 * by the IPv4 SA portion (v4_mask_len bits) and padding
+		 * inside the 128-bit IPv6 SA, so P + v4_mask_len <= 128.
+		 */
+		if (mobile_v6src_plen_ok &&
+		    (unsigned int)v6_src_prefix_len +
+		    (unsigned int)v4_mask_len > 128)
+			invarg("End.M.GTP4.E requires \"v6_src_prefix_len\" +"
+			       " \"v4_mask_len\" <= 128\n", "");
+		/*
+		 * The egress SID layout (Locator | IPv4 DA | Args.Mob.Session)
+		 * must fit in the 128-bit IPv6 destination address.  The
+		 * locator length here is the route prefix length the SID is
+		 * installed under.  dst_len == 0 means the caller did not
+		 * propagate the route prefix (e.g. nexthop encap), in which
+		 * case we leave the check to the kernel at install time.
+		 */
+		if (dst_len &&
+		    (unsigned int)dst_len + (unsigned int)v4_mask_len + 40 > 128)
+			invarg("End.M.GTP4.E requires route_prefix_len +"
+			       " \"v4_mask_len\" + 40 <= 128\n", "");
+		break;
+	default:
+		if (mobile_src_ok || mobile_v4mask_ok || mobile_v6src_plen_ok)
+			invarg("\"src\", \"v4_mask_len\", and"
+			       " \"v6_src_prefix_len\" are only valid for"
+			       " SRv6 Mobile User Plane actions\n", "");
 		break;
 	}
 }
@@ -1456,11 +1534,13 @@ static int seg6local_parse_flavors(struct rtattr *rta, size_t len,
 }
 
 static int parse_encap_seg6local(struct rtattr *rta, size_t len, int *argcp,
-				 char ***argvp)
+				 char ***argvp, __u8 dst_len)
 {
 	int nh4_ok = 0, nh6_ok = 0, iif_ok = 0, oif_ok = 0, flavors_ok = 0;
 	int segs_ok = 0, hmac_ok = 0, table_ok = 0, vrftable_ok = 0;
 	int action_ok = 0, srh_ok = 0, bpf_ok = 0, counters_ok = 0;
+	int mobile_src_ok = 0, mobile_v4mask_ok = 0, mobile_pdusess_ok = 0;
+	int mobile_v6src_plen_ok = 0;
 	__u32 action = 0, table, vrftable, iif, oif;
 	struct ipv6_sr_hdr *srh;
 	char **argv = *argvp;
@@ -1468,6 +1548,7 @@ static int parse_encap_seg6local(struct rtattr *rta, size_t len, int *argcp,
 	char segbuf[1024];
 	inet_prefix addr;
 	__u32 hmac = 0;
+	__u8 v4_mask_len = 0, v6_src_prefix_len = 0;
 	int ret = 0;
 
 	while (argc > 0) {
@@ -1569,6 +1650,72 @@ static int parse_encap_seg6local(struct rtattr *rta, size_t len, int *argcp,
 			if (lwt_parse_bpf(rta, len, &argc, &argv, SEG6_LOCAL_BPF,
 			    BPF_PROG_TYPE_LWT_SEG6LOCAL) < 0)
 				exit(-1);
+		} else if (strcmp(*argv, "src") == 0) {
+			/*
+			 * Mobile User Plane "src" template; scoped to the
+			 * seg6local block and unrelated to the top-level
+			 * "src" prefsrc keyword.
+			 */
+			NEXT_ARG();
+			if (mobile_src_ok++)
+				duparg2("src", *argv);
+			get_addr(&addr, *argv, AF_INET6);
+			ret = rta_addattr_l(rta, len, SEG6_LOCAL_MOBILE_SRC_ADDR,
+					    &addr.data, addr.bytelen);
+		} else if (strcmp(*argv, "v4_mask_len") == 0) {
+			NEXT_ARG();
+			if (mobile_v4mask_ok++)
+				duparg2("v4_mask_len", *argv);
+			if (get_u8(&v4_mask_len, *argv, 0) ||
+			    v4_mask_len == 0 || v4_mask_len > 32)
+				invarg("\"v4_mask_len\" must be in the range 1..32\n",
+				       *argv);
+			ret = rta_addattr8(rta, len, SEG6_LOCAL_MOBILE_V4_MASK_LEN,
+					   v4_mask_len);
+		} else if (strcmp(*argv, "v6_src_prefix_len") == 0) {
+			NEXT_ARG();
+			if (mobile_v6src_plen_ok++)
+				duparg2("v6_src_prefix_len", *argv);
+			/*
+			 * Per RFC 9433 Section 6.6 Figure 10, the IPv6 SA is
+			 * "Source UPF Prefix (P bits) | IPv4 SA (b bits) |
+			 * padding (128 - P - b)".  P must be a non-zero
+			 * multiple of 8 up to 128; the combined check
+			 * (P + v4_mask_len <= 128) is enforced per-action.
+			 */
+			if (get_u8(&v6_src_prefix_len, *argv, 0) ||
+			    v6_src_prefix_len == 0 ||
+			    v6_src_prefix_len > 127)
+				invarg("\"v6_src_prefix_len\" must be in the range 1..127\n",
+				       *argv);
+			ret = rta_addattr8(rta, len,
+					   SEG6_LOCAL_MOBILE_V6_SRC_PREFIX_LEN,
+					   v6_src_prefix_len);
+		} else if (strcmp(*argv, "pdu_type") == 0) {
+			__u8 psc_type;
+
+			NEXT_ARG();
+			if (mobile_pdusess_ok++)
+				duparg2("pdu_type", *argv);
+			/*
+			 * 3GPP TS 38.415 PDU Session Type is a 4-bit field; the
+			 * kernel mirrors that range (0..15).  0 = DL, 1 = UL.
+			 */
+			if (strcmp(*argv, "downlink") == 0 ||
+			    strcmp(*argv, "dl") == 0) {
+				psc_type = 0;
+			} else if (strcmp(*argv, "uplink") == 0 ||
+				   strcmp(*argv, "ul") == 0) {
+				psc_type = 1;
+			} else if (get_u8(&psc_type, *argv, 0) ||
+				   psc_type > 15) {
+				invarg("invalid \"pdu_type\" value"
+				       " (must be downlink|dl|uplink|ul"
+				       " or 0..15)\n", *argv);
+			}
+			ret = rta_addattr8(rta, len,
+					   SEG6_LOCAL_MOBILE_PDU_TYPE,
+					   psc_type);
 		} else {
 			break;
 		}
@@ -1582,7 +1729,9 @@ static int parse_encap_seg6local(struct rtattr *rta, size_t len, int *argcp,
 		exit(-1);
 	}
 
-	seg6local_action_check_attrs(action, nh6_ok);
+	seg6local_action_check_attrs(action, srh_ok, nh6_ok, mobile_src_ok,
+				     mobile_v4mask_ok, mobile_v6src_plen_ok,
+				     v4_mask_len, v6_src_prefix_len, dst_len);
 
 	if (srh_ok) {
 		int srhlen;
@@ -2289,7 +2438,7 @@ static int parse_encap_xfrm(struct rtattr *rta, size_t len,
 }
 
 int lwt_parse_encap(struct rtattr *rta, size_t len, int *argcp, char ***argvp,
-		    int encap_attr, int encap_type_attr)
+		    int encap_attr, int encap_type_attr, __u8 dst_len)
 {
 	struct rtattr *nest;
 	int argc = *argcp;
@@ -2328,7 +2477,7 @@ int lwt_parse_encap(struct rtattr *rta, size_t len, int *argcp, char ***argvp,
 		ret = parse_encap_seg6(rta, len, &argc, &argv);
 		break;
 	case LWTUNNEL_ENCAP_SEG6_LOCAL:
-		ret = parse_encap_seg6local(rta, len, &argc, &argv);
+		ret = parse_encap_seg6local(rta, len, &argc, &argv, dst_len);
 		break;
 	case LWTUNNEL_ENCAP_RPL:
 		ret = parse_encap_rpl(rta, len, &argc, &argv);

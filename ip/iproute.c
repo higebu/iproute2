@@ -106,10 +106,12 @@ static void usage(void)
 		"ACTION := { End | End.X | End.T | End.DX2 | End.DX6 | End.DX4 |\n"
 		"            End.DT6 | End.DT4 | End.DT46 | End.B6 | End.B6.Encaps |\n"
 		"            End.BM | End.S | End.AS | End.AM | End.BPF |\n"
-		"            End.MAP }\n"
+		"            End.MAP | End.M.GTP4.E }\n"
 		"OPTIONS := OPTION [ OPTIONS ]\n"
 		"OPTION := { flavors FLAVORS | srh SEG6HDR | nh4 ADDR | nh6 ADDR | iif DEV | oif DEV |\n"
-		"            table TABLEID | vrftable TABLEID | endpoint PROGNAME }\n"
+		"            table TABLEID | vrftable TABLEID | endpoint PROGNAME | MOBILE_OPTION }\n"
+		"MOBILE_OPTION := { src ADDR | v4_mask_len BITS | v6_src_prefix_len BITS |\n"
+		"                   pdu_type { downlink | dl | uplink | ul | 0..15 } }\n"
 		"FLAVORS := { FLAVOR[,FLAVOR] }\n"
 		"FLAVOR := { psp | usp | usd | next-csid }\n"
 		"IOAM6HDR := trace prealloc type IOAM6_TRACE_TYPE ns IOAM6_NAMESPACE size IOAM6_TRACE_SIZE\n"
@@ -1076,7 +1078,7 @@ static int parse_one_nh(struct nlmsghdr *n, struct rtmsg *r,
 			int old_len = rta->rta_len;
 
 			if (lwt_parse_encap(rta, len, &argc, &argv,
-					    RTA_ENCAP, RTA_ENCAP_TYPE))
+					    RTA_ENCAP, RTA_ENCAP_TYPE, 0))
 				return -1;
 			rtnh->rtnh_len += rta->rta_len - old_len;
 		} else if (strcmp(*argv, "as") == 0) {
@@ -1523,7 +1525,8 @@ static int iproute_modify(int cmd, unsigned int flags, int argc, char **argv)
 			rta->rta_len = RTA_LENGTH(0);
 
 			lwt_parse_encap(rta, sizeof(buf), &argc, &argv,
-					RTA_ENCAP, RTA_ENCAP_TYPE);
+					RTA_ENCAP, RTA_ENCAP_TYPE,
+					req.r.rtm_dst_len);
 
 			if (rta->rta_len > RTA_LENGTH(0))
 				addraw_l(&req.n, 1024
