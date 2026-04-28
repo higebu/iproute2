@@ -1117,6 +1117,22 @@ The action requires either no SRH or an SRH with
 equal to zero on the inbound packet; other matching packets are
 dropped.
 
+.B End.M.GTP6.D.Di srh segs
+.IR SEGMENTS
+.B src
+.IR ADDRESS
+- SRv6 Mobile User Plane End.M.GTP6.D.Di drop-in interconnect behavior
+(RFC 9433 Section 6.4).  Identical to
+.B End.M.GTP6.D
+except that the original outer IPv6 destination address of the
+incoming GTP-U packet is preserved as the final segment of the new
+SRH, allowing existing SRv6 networks to be inserted into a legacy
+mobile path without changing the destination semantics.
+.B sr_prefix_len
+is rejected for this action: the original outer destination is
+preserved verbatim instead of being repacked with an Args.Mob.Session
+field, so no locator length needs to be carried.
+
 .B Flavors parameters
 
 The flavors represent additional operations that can modify or extend a

@@ -409,6 +409,7 @@ static const char *seg6_action_names[SEG6_LOCAL_ACTION_MAX + 1] = {
 	[SEG6_LOCAL_ACTION_END_M_GTP4_E]	= "End.M.GTP4.E",
 	[SEG6_LOCAL_ACTION_END_M_GTP6_E]	= "End.M.GTP6.E",
 	[SEG6_LOCAL_ACTION_END_M_GTP6_D]	= "End.M.GTP6.D",
+	[SEG6_LOCAL_ACTION_END_M_GTP6_D_DI]	= "End.M.GTP6.D.Di",
 };
 
 static const char *format_action_type(int action)
@@ -632,6 +633,7 @@ static bool seg6local_action_excludes_final_seg(int action)
 	switch (action) {
 	case SEG6_LOCAL_ACTION_END_B6_ENCAP:
 	case SEG6_LOCAL_ACTION_END_M_GTP6_D:
+	case SEG6_LOCAL_ACTION_END_M_GTP6_D_DI:
 		return true;
 	default:
 		return false;
@@ -662,6 +664,14 @@ static void seg6local_action_check_attrs(int action, int srh_ok, int nh6_ok,
 		if (!srh_ok || !mobile_src_ok || !mobile_sr_plen_ok)
 			invarg("End.M.GTP6.D requires \"srh segs\", \"src\","
 			       " and \"sr_prefix_len\"\n", "");
+		break;
+	case SEG6_LOCAL_ACTION_END_M_GTP6_D_DI:
+		if (!srh_ok || !mobile_src_ok)
+			invarg("End.M.GTP6.D.Di requires \"srh segs\" and \"src\"\n",
+			       "");
+		if (mobile_sr_plen_ok)
+			invarg("End.M.GTP6.D.Di does not accept \"sr_prefix_len\"\n",
+			       "");
 		break;
 	case SEG6_LOCAL_ACTION_END_M_GTP4_E:
 		if (!mobile_src_ok || !mobile_v4mask_ok)
