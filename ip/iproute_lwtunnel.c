@@ -407,6 +407,7 @@ static const char *seg6_action_names[SEG6_LOCAL_ACTION_MAX + 1] = {
 	[SEG6_LOCAL_ACTION_END_DT46]		= "End.DT46",
 	[SEG6_LOCAL_ACTION_END_MAP]		= "End.MAP",
 	[SEG6_LOCAL_ACTION_END_M_GTP4_E]	= "End.M.GTP4.E",
+	[SEG6_LOCAL_ACTION_END_M_GTP6_E]	= "End.M.GTP6.E",
 };
 
 static const char *format_action_type(int action)
@@ -627,6 +628,12 @@ static void seg6local_action_check_attrs(int action, int srh_ok, int nh6_ok,
 	case SEG6_LOCAL_ACTION_END_MAP:
 		if (!nh6_ok)
 			invarg("End.MAP requires \"nh6\"\n", "");
+		break;
+	case SEG6_LOCAL_ACTION_END_M_GTP6_E:
+		if (!mobile_src_ok)
+			invarg("End.M.GTP6.E requires \"src\"\n", "");
+		if (srh_ok)
+			invarg("End.M.GTP6.E does not accept \"srh\"\n", "");
 		break;
 	case SEG6_LOCAL_ACTION_END_M_GTP4_E:
 		if (!mobile_src_ok || !mobile_v4mask_ok)
