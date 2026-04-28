@@ -1024,6 +1024,15 @@ followed by the specified SRH. The destination address of the outer IPv6
 header is set to the first segment of the new SRH. The source
 address is set as described in \fBip-sr\fR(8).
 
+.B End.MAP nh6
+.IR ADDRESS
+- SRv6 Mobile User Plane End.MAP behavior (RFC 9433 Section 6.2).
+Decrement the IPv6 Hop Limit, replace the IPv6 destination address
+with the configured next SID
+.RI ( nh6 ),
+and forward via the IPv6 FIB. The Segment Routing Header is left
+untouched.
+
 .B Flavors parameters
 
 The flavors represent additional operations that can modify or extend a
