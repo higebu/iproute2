@@ -408,6 +408,7 @@ static const char *seg6_action_names[SEG6_LOCAL_ACTION_MAX + 1] = {
 	[SEG6_LOCAL_ACTION_END_MAP]		= "End.MAP",
 	[SEG6_LOCAL_ACTION_END_M_GTP4_E]	= "End.M.GTP4.E",
 	[SEG6_LOCAL_ACTION_END_M_GTP6_E]	= "End.M.GTP6.E",
+	[SEG6_LOCAL_ACTION_END_M_GTP6_D]	= "End.M.GTP6.D",
 };
 
 static const char *format_action_type(int action)
@@ -589,6 +590,11 @@ static void print_encap_seg6local(FILE *fp, struct rtattr *encap)
 		print_uint(PRINT_ANY, "v4_mask_len", "v4_mask_len %u ",
 			   rta_getattr_u8(tb[SEG6_LOCAL_MOBILE_V4_MASK_LEN]));
 
+	if (tb[SEG6_LOCAL_MOBILE_SR_PREFIX_LEN])
+		print_uint(PRINT_ANY, "sr_prefix_len",
+			   "sr_prefix_len %u ",
+			   rta_getattr_u8(tb[SEG6_LOCAL_MOBILE_SR_PREFIX_LEN]));
+
 	if (tb[SEG6_LOCAL_MOBILE_V6_SRC_PREFIX_LEN])
 		print_uint(PRINT_ANY, "v6_src_prefix_len",
 			   "v6_src_prefix_len %u ",
@@ -616,9 +622,26 @@ static void print_encap_seg6local(FILE *fp, struct rtattr *encap)
 	}
 }
 
+/*
+ * SRH-supplying actions (the seg6local equivalents of seg6 inline mode)
+ * pass the entire segment list explicitly; parse_srh() must not append the
+ * implicit terminating SID it adds for inline-style callers.
+ */
+static bool seg6local_action_excludes_final_seg(int action)
+{
+	switch (action) {
+	case SEG6_LOCAL_ACTION_END_B6_ENCAP:
+	case SEG6_LOCAL_ACTION_END_M_GTP6_D:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static void seg6local_action_check_attrs(int action, int srh_ok, int nh6_ok,
 					 int mobile_src_ok,
 					 int mobile_v4mask_ok,
+					 int mobile_sr_plen_ok,
 					 int mobile_v6src_plen_ok,
 					 __u8 v4_mask_len,
 					 __u8 v6_src_prefix_len,
@@ -634,6 +657,11 @@ static void seg6local_action_check_attrs(int action, int srh_ok, int nh6_ok,
 			invarg("End.M.GTP6.E requires \"src\"\n", "");
 		if (srh_ok)
 			invarg("End.M.GTP6.E does not accept \"srh\"\n", "");
+		break;
+	case SEG6_LOCAL_ACTION_END_M_GTP6_D:
+		if (!srh_ok || !mobile_src_ok || !mobile_sr_plen_ok)
+			invarg("End.M.GTP6.D requires \"srh segs\", \"src\","
+			       " and \"sr_prefix_len\"\n", "");
 		break;
 	case SEG6_LOCAL_ACTION_END_M_GTP4_E:
 		if (!mobile_src_ok || !mobile_v4mask_ok)
@@ -666,9 +694,10 @@ static void seg6local_action_check_attrs(int action, int srh_ok, int nh6_ok,
 			       " \"v4_mask_len\" + 40 <= 128\n", "");
 		break;
 	default:
-		if (mobile_src_ok || mobile_v4mask_ok || mobile_v6src_plen_ok)
-			invarg("\"src\", \"v4_mask_len\", and"
-			       " \"v6_src_prefix_len\" are only valid for"
+		if (mobile_src_ok || mobile_v4mask_ok || mobile_sr_plen_ok ||
+		    mobile_v6src_plen_ok)
+			invarg("\"src\", \"v4_mask_len\", \"sr_prefix_len\","
+			       " and \"v6_src_prefix_len\" are only valid for"
 			       " SRv6 Mobile User Plane actions\n", "");
 		break;
 	}
@@ -1547,7 +1576,7 @@ static int parse_encap_seg6local(struct rtattr *rta, size_t len, int *argcp,
 	int segs_ok = 0, hmac_ok = 0, table_ok = 0, vrftable_ok = 0;
 	int action_ok = 0, srh_ok = 0, bpf_ok = 0, counters_ok = 0;
 	int mobile_src_ok = 0, mobile_v4mask_ok = 0, mobile_pdusess_ok = 0;
-	int mobile_v6src_plen_ok = 0;
+	int mobile_sr_plen_ok = 0, mobile_v6src_plen_ok = 0;
 	__u32 action = 0, table, vrftable, iif, oif;
 	struct ipv6_sr_hdr *srh;
 	char **argv = *argvp;
@@ -1555,7 +1584,7 @@ static int parse_encap_seg6local(struct rtattr *rta, size_t len, int *argcp,
 	char segbuf[1024];
 	inet_prefix addr;
 	__u32 hmac = 0;
-	__u8 v4_mask_len = 0, v6_src_prefix_len = 0;
+	__u8 v4_mask_len = 0, sr_prefix_len = 0, v6_src_prefix_len = 0;
 	int ret = 0;
 
 	while (argc > 0) {
@@ -1679,6 +1708,23 @@ static int parse_encap_seg6local(struct rtattr *rta, size_t len, int *argcp,
 				       *argv);
 			ret = rta_addattr8(rta, len, SEG6_LOCAL_MOBILE_V4_MASK_LEN,
 					   v4_mask_len);
+		} else if (strcmp(*argv, "sr_prefix_len") == 0) {
+			NEXT_ARG();
+			if (mobile_sr_plen_ok++)
+				duparg2("sr_prefix_len", *argv);
+			/*
+			 * The egress SID must leave room for the 40-bit
+			 * Args.Mob.Session field, so the locator can be at
+			 * most (128 - 40) = 88 bits.
+			 */
+			if (get_u8(&sr_prefix_len, *argv, 0) ||
+			    sr_prefix_len == 0 ||
+			    sr_prefix_len > 88)
+				invarg("\"sr_prefix_len\" must be in the range 1..88\n",
+				       *argv);
+			ret = rta_addattr8(rta, len,
+					   SEG6_LOCAL_MOBILE_SR_PREFIX_LEN,
+					   sr_prefix_len);
 		} else if (strcmp(*argv, "v6_src_prefix_len") == 0) {
 			NEXT_ARG();
 			if (mobile_v6src_plen_ok++)
@@ -1737,14 +1783,15 @@ static int parse_encap_seg6local(struct rtattr *rta, size_t len, int *argcp,
 	}
 
 	seg6local_action_check_attrs(action, srh_ok, nh6_ok, mobile_src_ok,
-				     mobile_v4mask_ok, mobile_v6src_plen_ok,
+				     mobile_v4mask_ok, mobile_sr_plen_ok,
+				     mobile_v6src_plen_ok,
 				     v4_mask_len, v6_src_prefix_len, dst_len);
 
 	if (srh_ok) {
 		int srhlen;
 
 		srh = parse_srh(segbuf, hmac,
-				action == SEG6_LOCAL_ACTION_END_B6_ENCAP);
+				seg6local_action_excludes_final_seg(action));
 		srhlen = (srh->hdrlen + 1) << 3;
 		ret = rta_addattr_l(rta, len, SEG6_LOCAL_SRH, srh, srhlen);
 		free(srh);
