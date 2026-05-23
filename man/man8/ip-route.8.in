@@ -195,7 +195,8 @@ throw " | " unreachable " | " prohibit " | " blackhole " | " nat " ]"
 .ti -8
 .IR ENCAP " := [ "
 .IR ENCAP_MPLS " | " ENCAP_IP " | " ENCAP_BPF " | "
-.IR ENCAP_SEG6 " | " ENCAP_SEG6LOCAL " | " ENCAP_IOAM6 " ] "
+.IR ENCAP_SEG6 " | " ENCAP_SEG6LOCAL " | " ENCAP_SEG6MOBILE " | "
+.IR ENCAP_IOAM6 " ] "
 
 .ti -8
 .IR ENCAP_MPLS " := "
@@ -256,6 +257,14 @@ throw " | " unreachable " | " prohibit " | " blackhole " | " nat " ]"
 .BR action
 .IR SEG6_ACTION " [ "
 .IR SEG6_ACTION_PARAM " ] [ "
+.BR count " ] "
+
+.ti -8
+.IR ENCAP_SEG6MOBILE " := "
+.B seg6mobile
+.BR action
+.IR SEG6_MOBILE_ACTION " [ "
+.IR SEG6_MOBILE_PARAM " ] [ "
 .BR count " ] "
 
 .ti -8
@@ -764,6 +773,9 @@ is a string specifying the supported encapsulation type. Namely:
 .BI seg6local
 - local SRv6 segment processing
 .sp
+.BI seg6mobile
+- SRv6 Mobile User Plane processing (RFC 9433)
+.sp
 .BI ioam6
 - encapsulation type IPv6 IOAM
 .sp
@@ -1095,6 +1107,26 @@ attribute can be used only with NEXT-C-SID flavor.
 - defines the Locator-Node Function length for NEXT-C-SID
 flavors. The Locator-Node Function length must be greater than 0 and evenly
 divisible by 8. This attribute can be used only with NEXT-C-SID flavor.
+.in -4
+
+.B seg6mobile
+.in +2
+.IR SEG6_MOBILE_ACTION " [ "
+.IR SEG6_MOBILE_PARAM " ] [ "
+.BR count " ]"
+- SRv6 Mobile User Plane operation (RFC 9433) to perform on matching
+packets. The optional \fBcount\fR attribute enables per-CPU packet, byte
+and error counters for this route; the aggregated values are printed by
+the \fB-s\fR flag in the \fBshow\fR command. The following actions are
+currently supported.
+.in +2
+
+.B End.MAP mapped_sid
+.I ADDRESS
+- Replace the IPv6 destination address with the configured mapped SID
+.RI ( ADDRESS )
+and forward via the IPv6 FIB; an SRH, if present, is not modified
+(neither the SID list nor the Segments Left value).
 .in -4
 
 .B ioam6
