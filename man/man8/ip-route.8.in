@@ -762,6 +762,9 @@ is a string specifying the supported encapsulation type. Namely:
 .BI seg6local
 - local SRv6 segment processing
 .sp
+.BI seg6mobile
+- SRv6 Mobile User Plane processing (RFC 9433)
+.sp
 .BI ioam6
 - encapsulation type IPv6 IOAM
 .sp
@@ -1082,6 +1085,27 @@ attribute can be used only with NEXT-C-SID flavor.
 flavors. The Locator-Node Function length must be greater than 0 and evenly
 divisible by 8. This attribute can be used only with NEXT-C-SID flavor.
 .in -4
+
+.B seg6mobile
+.in +2
+.IR SEG6_MOBILE_ACTION " [ "
+.IR SEG6_MOBILE_PARAM " ]"
+- SRv6 Mobile User Plane operation (RFC 9433) to perform on matching
+packets. Currently only the End.MAP behavior is supported.
+.in +2
+
+.B End.MAP nh6
+.I ADDRESS
+- Replace the IPv6 destination address with the configured SID
+.RI ( ADDRESS )
+and forward via the IPv6 FIB without consuming the SRH.
+.in -2
+
+.B count
+- Enable per-CPU packet, byte and error counters for this route.
+The aggregated values are printed by
+.RI \(dq ip "\ -s\ route\ show\(dq."
+.in -2
 
 .B ioam6
 .in +2
