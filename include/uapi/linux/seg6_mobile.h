@@ -18,6 +18,18 @@ enum {
 				 * next-hop SID (other behaviors)
 				 */
 	SEG6_MOBILE_COUNTERS,	/* nested - per-behavior packets/bytes/errors */
+	SEG6_MOBILE_SRC_ADDR,	/* in6_addr - outer IPv6 SA template
+				 * (Source UPF Prefix for GTP-U encap)
+				 */
+	SEG6_MOBILE_V4_MASK_LEN,	/* u8 - SID IPv4 portion length, 1..32 */
+	SEG6_MOBILE_PDU_TYPE,		/* u8 - 4-bit PDU Type for the PDU
+					 * Session Container (0=DL, 1=UL); the
+					 * attribute presence selects long
+					 * GTPv1-U + PSC over short GTPv1-U
+					 */
+	SEG6_MOBILE_V6_SRC_PREFIX_LEN,	/* u8 - Source UPF Prefix length P,
+					 * 1..127, default 64 when unset
+					 */
 	__SEG6_MOBILE_MAX,
 };
 
@@ -25,7 +37,8 @@ enum {
 
 enum {
 	SEG6_MOBILE_ACTION_UNSPEC = 0,
-	SEG6_MOBILE_ACTION_END_MAP = 1,	/* RFC 9433 Section 6.2 */
+	SEG6_MOBILE_ACTION_END_MAP = 1,		/* RFC 9433 Section 6.2 */
+	SEG6_MOBILE_ACTION_END_M_GTP4_E = 2,	/* RFC 9433 Section 6.6 */
 
 	__SEG6_MOBILE_ACTION_MAX,
 };
