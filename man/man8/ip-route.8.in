@@ -1091,7 +1091,7 @@ divisible by 8. This attribute can be used only with NEXT-C-SID flavor.
 .IR SEG6_MOBILE_ACTION " [ "
 .IR SEG6_MOBILE_PARAM " ]"
 - SRv6 Mobile User Plane operation (RFC 9433) to perform on matching
-packets. Currently only the End.MAP behavior is supported.
+packets.
 .in +2
 
 .B End.MAP nh6
@@ -1100,6 +1100,37 @@ packets. Currently only the End.MAP behavior is supported.
 .RI ( ADDRESS )
 and forward via the IPv6 FIB without consuming the SRH.  See
 RFC 9433 Section 6.2.
+.in -2
+.in +2
+
+.B End.M.GTP4.E src
+.I ADDRESS
+.B v4_mask_len
+.I LEN
+.RB [ " pdu_type "
+.RI { dl | ul | NUMBER " } ] [ "
+.B v6_src_prefix_len
+.I LEN
+.RB " ]"
+- Decapsulate the SRv6 packet and re-encapsulate the inner T-PDU in
+IPv4/UDP/GTP-U toward a legacy IPv4 receiver.  See RFC 9433
+Section 6.6.
+.I src
+is the outer IPv6 source address template that is overlaid with the
+.IR LEN -bit
+IPv4 source recovered from the inbound IPv6 source.
+.I v4_mask_len
+(1..32) is the SID's IPv4 portion length.
+.I pdu_type
+selects the PDU Session Container PDU Type
+.RB ( dl
+= 0,
+.B ul
+= 1, or a raw 0..15 value); when omitted a short GTPv1-U header is
+emitted with no PDU Session Container.
+.I v6_src_prefix_len
+(1..127) is the Source UPF Prefix length P (default 64) and must
+leave room for the 32-bit IPv4 source template.
 .in -2
 
 .B count
