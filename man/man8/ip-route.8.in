@@ -1091,7 +1091,7 @@ divisible by 8. This attribute can be used only with NEXT-C-SID flavor.
 .IR SEG6_MOBILE_ACTION " [ "
 .IR SEG6_MOBILE_PARAM " ]"
 - SRv6 Mobile User Plane operation (RFC 9433) to perform on matching
-packets. Currently only the End.MAP behavior is supported.
+packets.
 .in +2
 
 .B End.MAP nh6
@@ -1099,6 +1099,37 @@ packets. Currently only the End.MAP behavior is supported.
 - Replace the IPv6 destination address with the configured SID
 .RI ( ADDRESS )
 and forward via the IPv6 FIB without consuming the SRH.
+.in -2
+.in +2
+
+.B End.M.GTP4.E
+.RB [ " pdu_type "
+.B dl
+.RB " ] [ "
+.B v6_src_prefix_len
+.I LEN
+.RB " ]"
+- Decapsulate the SRv6 packet and re-encapsulate the inner T-PDU in
+IPv4/UDP/GTP-U toward a legacy IPv4 receiver. The IPv4 destination is
+recovered from the SID and the IPv4 source from the inbound IPv6 source
+at the
+.I v6_src_prefix_len
+offset. End.M.GTP4.E is a downlink-only behavior, so
+.I pdu_type
+supports
+.B dl
+(0) only; an uplink value is rejected by the kernel. When
+.I pdu_type
+is omitted a short GTPv1-U header is emitted with no PDU Session
+Container.
+.I v6_src_prefix_len
+(1..127) is the Source UPF Prefix length P (default 64) and must
+leave room for the 32-bit IPv4 source template.
+The re-encapsulated IPv4 packet is routed on the input path, and its
+source address is synthesized from the inbound IPv6 source, so it has
+no reverse path. The ingress device must therefore have
+.B net.ipv4.conf.<dev>.rp_filter
+set to 0, otherwise the packet is dropped by reverse-path filtering.
 .in -2
 
 .B count

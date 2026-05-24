@@ -584,8 +584,36 @@ static void print_encap_seg6local(FILE *fp, struct rtattr *encap)
 }
 
 static const char *seg6_mobile_action_names[SEG6_MOBILE_ACTION_MAX + 1] = {
-	[SEG6_MOBILE_ACTION_END_MAP]	= "End.MAP",
+	[SEG6_MOBILE_ACTION_END_MAP]		= "End.MAP",
+	[SEG6_MOBILE_ACTION_END_M_GTP4_E]	= "End.M.GTP4.E",
 };
+
+static const char *seg6_mobile_pdu_type_names[] = {
+	[0]	= "dl",
+	[1]	= "ul",
+};
+
+static const char *format_seg6_mobile_pdu_type(__u8 t)
+{
+	if (t < ARRAY_SIZE(seg6_mobile_pdu_type_names) &&
+	    seg6_mobile_pdu_type_names[t])
+		return seg6_mobile_pdu_type_names[t];
+	return NULL;
+}
+
+static int read_seg6_mobile_pdu_type(const char *name, __u8 *out)
+{
+	__u8 i;
+
+	for (i = 0; i < ARRAY_SIZE(seg6_mobile_pdu_type_names); i++) {
+		if (seg6_mobile_pdu_type_names[i] &&
+		    strcmp(seg6_mobile_pdu_type_names[i], name) == 0) {
+			*out = i;
+			return 0;
+		}
+	}
+	return get_u8(out, name, 0);
+}
 
 static const char *format_seg6_mobile_action(int action)
 {
@@ -649,7 +677,9 @@ static void print_seg6_mobile_counters(FILE *fp, struct rtattr *encap)
 static void print_encap_seg6mobile(FILE *fp, struct rtattr *encap)
 {
 	struct rtattr *tb[SEG6_MOBILE_MAX + 1];
+	const char *pdu_type_name;
 	int action;
+	__u8 pdu_type;
 
 	parse_rtattr_nested(tb, SEG6_MOBILE_MAX, encap);
 
@@ -663,6 +693,22 @@ static void print_encap_seg6mobile(FILE *fp, struct rtattr *encap)
 	if (tb[SEG6_MOBILE_NH6])
 		print_string(PRINT_ANY, "nh6", "nh6 %s ",
 			     rt_addr_n2a_rta(AF_INET6, tb[SEG6_MOBILE_NH6]));
+
+	if (tb[SEG6_MOBILE_V6_SRC_PREFIX_LEN])
+		print_uint(PRINT_ANY, "v6_src_prefix_len",
+			   "v6_src_prefix_len %u ",
+			   rta_getattr_u8(tb[SEG6_MOBILE_V6_SRC_PREFIX_LEN]));
+
+	if (tb[SEG6_MOBILE_PDU_TYPE]) {
+		pdu_type = rta_getattr_u8(tb[SEG6_MOBILE_PDU_TYPE]);
+		pdu_type_name = format_seg6_mobile_pdu_type(pdu_type);
+		if (pdu_type_name)
+			print_string(PRINT_ANY, "pdu_type",
+				     "pdu_type %s ", pdu_type_name);
+		else
+			print_uint(PRINT_ANY, "pdu_type",
+				   "pdu_type %u ", pdu_type);
+	}
 
 	if (tb[SEG6_MOBILE_COUNTERS] && show_stats)
 		print_seg6_mobile_counters(fp, tb[SEG6_MOBILE_COUNTERS]);
@@ -1710,10 +1756,12 @@ static int parse_encap_seg6mobile(struct rtattr *rta, size_t len, int *argcp,
 				  char ***argvp)
 {
 	int action_ok = 0, nh6_ok = 0, counters_ok = 0;
+	int pdu_type_ok = 0, v6_src_prefix_len_ok = 0;
 	char **argv = *argvp;
 	int argc = *argcp;
 	inet_prefix addr;
 	__u32 action = 0;
+	__u8 u8val;
 	int ret = 0;
 
 	while (argc > 0) {
@@ -1733,6 +1781,25 @@ static int parse_encap_seg6mobile(struct rtattr *rta, size_t len, int *argcp,
 			get_addr(&addr, *argv, AF_INET6);
 			ret = rta_addattr_l(rta, len, SEG6_MOBILE_NH6,
 					    &addr.data, addr.bytelen);
+		} else if (strcmp(*argv, "pdu_type") == 0) {
+			NEXT_ARG();
+			if (pdu_type_ok++)
+				duparg2("pdu_type", *argv);
+			if (read_seg6_mobile_pdu_type(*argv, &u8val))
+				invarg("\"pdu_type\" value is invalid",
+				       *argv);
+			ret = rta_addattr8(rta, len, SEG6_MOBILE_PDU_TYPE,
+					   u8val);
+		} else if (strcmp(*argv, "v6_src_prefix_len") == 0) {
+			NEXT_ARG();
+			if (v6_src_prefix_len_ok++)
+				duparg2("v6_src_prefix_len", *argv);
+			if (get_u8(&u8val, *argv, 0))
+				invarg("\"v6_src_prefix_len\" value is invalid",
+				       *argv);
+			ret = rta_addattr8(rta, len,
+					   SEG6_MOBILE_V6_SRC_PREFIX_LEN,
+					   u8val);
 		} else if (strcmp(*argv, "count") == 0) {
 			if (counters_ok++)
 				duparg2("count", *argv);
