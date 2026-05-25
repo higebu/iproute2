@@ -586,6 +586,7 @@ static void print_encap_seg6local(FILE *fp, struct rtattr *encap)
 static const char *seg6_mobile_action_names[SEG6_MOBILE_ACTION_MAX + 1] = {
 	[SEG6_MOBILE_ACTION_END_MAP]		= "End.MAP",
 	[SEG6_MOBILE_ACTION_END_M_GTP4_E]	= "End.M.GTP4.E",
+	[SEG6_MOBILE_ACTION_END_M_GTP6_E]	= "End.M.GTP6.E",
 };
 
 static const char *seg6_mobile_pdu_type_names[] = {

@@ -112,7 +112,7 @@ static void usage(void)
 		"FLAVORS := { FLAVOR[,FLAVOR] }\n"
 		"FLAVOR := { psp | usp | usd | next-csid }\n"
 		"SEG6MOBILE := action MOBILE_ACTION [ MOBILE_OPTS ] [ count ]\n"
-		"MOBILE_ACTION := { End.MAP | End.M.GTP4.E }\n"
+		"MOBILE_ACTION := { End.MAP | End.M.GTP4.E | End.M.GTP6.E }\n"
 		"MOBILE_OPTS := { nh6 ADDR | src ADDR | v4_mask_len LEN |\n"
 		"            pdu_type { dl | ul | NUMBER } | v6_src_prefix_len LEN }\n"
 		"IOAM6HDR := trace prealloc type IOAM6_TRACE_TYPE ns IOAM6_NAMESPACE size IOAM6_TRACE_SIZE\n"
