@@ -588,6 +588,7 @@ static const char *seg6_mobile_action_names[SEG6_MOBILE_ACTION_MAX + 1] = {
 	[SEG6_MOBILE_ACTION_END_M_GTP4_E]	= "End.M.GTP4.E",
 	[SEG6_MOBILE_ACTION_END_M_GTP6_E]	= "End.M.GTP6.E",
 	[SEG6_MOBILE_ACTION_END_M_GTP6_D]	= "End.M.GTP6.D",
+	[SEG6_MOBILE_ACTION_END_M_GTP6_D_DI]	= "End.M.GTP6.D.Di",
 };
 
 static const char *seg6_mobile_pdu_type_names[] = {
