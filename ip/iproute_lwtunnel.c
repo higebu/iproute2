@@ -728,6 +728,10 @@ static void print_encap_seg6mobile(FILE *fp, struct rtattr *encap)
 		print_uint(PRINT_ANY, "sr_prefix_len", "sr_prefix_len %u ",
 			   rta_getattr_u8(tb[SEG6_MOBILE_SR_PREFIX_LEN]));
 
+	if (tb[SEG6_MOBILE_VRFTABLE])
+		print_uint(PRINT_ANY, "vrftable", "vrftable %u ",
+			   rta_getattr_u32(tb[SEG6_MOBILE_VRFTABLE]));
+
 	if (tb[SEG6_MOBILE_COUNTERS] && show_stats)
 		print_seg6_mobile_counters(fp, tb[SEG6_MOBILE_COUNTERS]);
 }
@@ -1776,12 +1780,14 @@ static int parse_encap_seg6mobile(struct rtattr *rta, size_t len, int *argcp,
 	int action_ok = 0, nh6_ok = 0, counters_ok = 0;
 	int src_ok = 0, pdu_type_ok = 0, v6_src_prefix_len_ok = 0;
 	int srh_ok = 0, sr_prefix_len_ok = 0;
+	int vrftable_ok = 0;
 	struct ipv6_sr_hdr *srh = NULL;
 	char segbuf[1024] = "";
 	char **argv = *argvp;
 	int argc = *argcp;
 	inet_prefix addr;
 	__u32 action = 0;
+	__u32 u32val;
 	__u8 u8val;
 	int ret = 0;
 
@@ -1846,6 +1852,15 @@ static int parse_encap_seg6mobile(struct rtattr *rta, size_t len, int *argcp,
 				       *argv);
 			ret = rta_addattr8(rta, len,
 					   SEG6_MOBILE_SR_PREFIX_LEN, u8val);
+		} else if (strcmp(*argv, "vrftable") == 0) {
+			NEXT_ARG();
+			if (vrftable_ok++)
+				duparg2("vrftable", *argv);
+			if (get_u32(&u32val, *argv, 0))
+				invarg("\"vrftable\" value is invalid",
+				       *argv);
+			ret = rta_addattr32(rta, len, SEG6_MOBILE_VRFTABLE,
+					    u32val);
 		} else if (strcmp(*argv, "count") == 0) {
 			if (counters_ok++)
 				duparg2("count", *argv);
