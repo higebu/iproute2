@@ -116,7 +116,7 @@ static void usage(void)
 		"            End.M.GTP6.D.Di | H.M.GTP4.D }\n"
 		"MOBILE_OPTS := { nh6 ADDR | src ADDR | v4_mask_len LEN |\n"
 		"            pdu_type { dl | ul | NUMBER } | v6_src_prefix_len LEN |\n"
-		"            srh SEG6HDR | sr_prefix_len LEN }\n"
+		"            srh SEG6HDR | sr_prefix_len LEN | vrftable TABLEID }\n"
 		"IOAM6HDR := trace prealloc type IOAM6_TRACE_TYPE ns IOAM6_NAMESPACE size IOAM6_TRACE_SIZE\n"
 		"XFRMINFO := if_id IF_ID [ link_dev LINK ]\n"
 		"ROUTE_GET_FLAGS := ROUTE_GET_FLAG [ ROUTE_GET_FLAGS ]\n"
